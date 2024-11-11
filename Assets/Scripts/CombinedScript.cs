@@ -39,7 +39,7 @@ namespace OpenAI
         private AudioClip clip;
         private bool isRecording;
         private float time;
-        private OpenAIApi openai = new OpenAIApi("");
+        private OpenAIApi openai = new OpenAIApi("sk-proj-pjkgZjpAYVAtiofl2HVGT3BlbkFJThMCNqZYHeJnAJOmSlUu");
 
         private void Start()
         {
@@ -49,17 +49,21 @@ namespace OpenAI
             {
                 Role = "user",
                 Content = "You are an astronaut and astronomer named Dr. Astro. " +
-                "You will have an educational conversation where you will teach the user about exoplanets and the search for life on exoplanets. " +
+                "You will have an educational conversation where you will teach me about exoplanets and the search for life on exoplanets. " +
                 "Specifically, you must cover these 5 topics: " +
-                "the transit method for detecting exoplanets, " +
-                "the key criterion for a planet to be considered potentially habitable, " +
-                "the radial velocity method for detecting exoplanets, " +
-                "the significance of liquid water in the search for extraterrestrial life, " +
-                "the space telescope most successful in discovering exoplanets using the transit method. " +
-                "Please start the conversation with an adequate introduction of yourself and the topics that will be covered. " +
-                "After each topic, you should allow for questions and respond to them but after the user has no more questions you must move on to the next topic." +
-                "Please limit the contents of the conversational interaction to these topics or not further than astronomy in general. " +
-                "If the user asks unrelated questions or makes off-topic comments, please steer the conversation back to the topics above."
+                "(1) the transit method for detecting exoplanets, " +
+                "(2) the key criterion for a planet to be considered potentially habitable, " +
+                "(3) the radial velocity method for detecting exoplanets, " +
+                "(4) the significance of liquid water in the search for extraterrestrial life, " +
+                "(5) the space telescope most successful in discovering exoplanets using the transit method. " +
+                "After each topic, you should allow for questions and respond to them but after the user has no more questions " +
+                "you must move on to the next topic. Please allow for 3 or 4 rounds of questions from the user before moving on to the next topic, " +
+                "unless the user states earlier that they have no more questions. " +
+                "You must limit the contents of the conversational interaction to these five given astronomy topics. " +
+                "If the user asks unrelated questions or makes off-topic comments, you must steer the conversation back to the astronomy topics above." +
+                "Once you have finished covering all of the above 5 astronomy topics and have answered all of the questions that the user has, " +
+                "please wrap up the conversation by telling the user that the conversation is over and " +
+                "that they will now take a quiz on the topics that were discussed."
             };
 
          //   Debug.Log($"Starting message: {message.Content}");
@@ -95,7 +99,9 @@ namespace OpenAI
                 Language = "en"
             };
             var res = await openai.CreateAudioTranscription(req);
-
+            if (res.Text.Contains("end")) { 
+                Invoke(nameof(EndConvo), 1);
+            }
             return res.Text;
         }
 
@@ -129,7 +135,7 @@ namespace OpenAI
 
             openai.CreateChatCompletionAsync(new CreateChatCompletionRequest()
             {
-                Model = "gpt-4o-mini",
+                Model = "gpt-4o",
                 Messages = messages
             }, OnResponse, OnComplete, new CancellationTokenSource());
         }
@@ -140,9 +146,9 @@ namespace OpenAI
 
             if (text == "") return;
 
-            if (text.Contains("END_CONVO"))
+            if (text.Contains("end"))
             {
-                text = text.Replace("END_CONVO", "");
+                text = text.Replace("end", "");
 
                 Invoke(nameof(EndConvo), 5);
             }
@@ -183,6 +189,7 @@ namespace OpenAI
         private void EndConvo()
         {
             Debug.Log("Conversation ended.");
+            SaveToCSV();
             messages.Clear();
         }
 
@@ -190,14 +197,14 @@ namespace OpenAI
 
         public async Task MakeAudioRequest(string message)
         {
-            var credentials = new BasicAWSCredentials("", "");
+            var credentials = new BasicAWSCredentials("AKIAUNHAN6EBCZFLBEEH", "WyW+SgGUWZL9OtFxJfr355W84FYwpvhlK9T2nHYN");
             var client = new AmazonPollyClient(credentials, RegionEndpoint.USEast1);
 
             var request = new SynthesizeSpeechRequest()
             {
                 Text = message,
                 Engine = Engine.Neural,
-                VoiceId = VoiceId.Ayanda,
+                VoiceId = VoiceId.Danielle,
                 OutputFormat = OutputFormat.Mp3
             };
 
@@ -254,6 +261,33 @@ namespace OpenAI
                 }
             }
         }
+
+
+        private void SaveToCSV()
+        {
+            string filePath = $"{Application.persistentDataPath}/conversation_log.csv";
+            using (StreamWriter writer = new StreamWriter(filePath))
+            {
+                writer.WriteLine("Role,Content");  // CSV header
+                foreach (var message in messages)
+                {
+                    writer.WriteLine($"{message.Role},{EscapeCSV(message.Content)}");
+                }
+            }
+            Debug.Log($"Conversation saved to: {filePath}");
+        }
+
+        private string EscapeCSV(string input)
+        {
+            if (input.Contains(","))
+            {
+                input = "\"" + input.Replace("\"", "\"\"") + "\"";
+            }
+            return input;
+        }
+
+
+
     }
 }
 
